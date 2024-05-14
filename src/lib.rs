@@ -1,6 +1,6 @@
 use std::error::Error;
 use std::fs::{DirEntry, Metadata};
-use std::path::{Component, Path};
+use std::path::{Component, Path, PathBuf};
 use std::{fmt, fs, io};
 use std::time::SystemTime;
 use chrono::{DateTime, Datelike, Utc};
@@ -41,7 +41,7 @@ impl From<io::Error> for MetadataError {
 }
 
 pub struct Config {
-    pub directory_path: String,
+    pub directory_path: PathBuf,
     pub recursive: bool,
     pub sorting: SortingType
 }
@@ -51,7 +51,7 @@ impl Config {
         args.next();
 
         let directory_path = match args.next() {
-            Some(arg) => arg,
+            Some(arg) => PathBuf::from(arg),
             None => return Err("Directory not specified"),
         };
 
@@ -62,7 +62,7 @@ impl Config {
             match arg.as_str() {
                 "-r" => recursive = true,
                 arg if arg.starts_with("sorting=") => {
-                    let sorting_str = &arg["-sorting=".len()..];
+                    let sorting_str = &arg["sorting=".len()..];
                     sorting = match sorting_str {
                         "day" => SortingType::Day,
                         "month" => SortingType::Month,
@@ -78,18 +78,27 @@ impl Config {
 }
 
 pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
-    let files = fs::read_dir(config.directory_path)?;
+    process_directory(&config.directory_path, config.recursive)?;
+    Ok(())
+}
 
-    for file in files {
-        if let Ok(file) = file {
-            if let Err(e) = move_file(file) {
-                eprintln!("Error moving file: {e}");
+fn process_directory(path: &Path, recursive: bool) -> Result<(), Box<dyn Error>> {
+    let entries = fs::read_dir(path)?;
+
+    for entry in entries {
+        let entry = entry?;
+        if entry.file_type()?.is_dir() {
+            if recursive {
+                process_directory(&entry.path(), recursive)?;
             }
+        } else {
+            move_file(entry)?;
         }
     }
 
     Ok(())
 }
+
 
 fn move_file(file: DirEntry) -> Result<(), Box<dyn Error>> {
     let original_path = file.path();
@@ -129,11 +138,11 @@ fn get_year_month(system_time: SystemTime) -> (i32, u32) {
     (year, month)
 }
 
-fn get_root_directory(path: &Path) -> Option<&Path> {
+fn get_root_directory(path: &Path) -> Option<PathBuf> {
     for component in path.components() {
         if let Component::Normal(root_dir) = component {
-            return Some(Path::new(root_dir));
+            return Some(PathBuf::from(root_dir));
         }
     }
-    None
+    Some(path.to_path_buf())
 }
