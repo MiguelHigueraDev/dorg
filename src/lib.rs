@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::fs::{DirEntry, Metadata};
 use std::path::{Component, Path};
-use std::{fs, io};
+use std::{fmt, fs, io};
 use std::time::SystemTime;
 use chrono::{DateTime, Datelike, Utc};
 
@@ -9,9 +9,35 @@ pub enum SortingType {
     Month, Day
 }
 
+#[derive(Debug)]
 pub enum MetadataError {
     CreationTimeUnavailable,
     IoError(io::Error)
+}
+
+
+impl fmt::Display for MetadataError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MetadataError::CreationTimeUnavailable => write!(f, "Creation time is unavailable"),
+            MetadataError::IoError(e) => write!(f, "IO error: {}", e),
+        }
+    }
+}
+
+impl Error for MetadataError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            MetadataError::IoError(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+impl From<io::Error> for MetadataError {
+    fn from(error: io::Error) -> Self {
+        MetadataError::IoError(error)
+    }
 }
 
 pub struct Config {
@@ -55,12 +81,9 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     let files = fs::read_dir(config.directory_path)?;
 
     for file in files {
-        match file {
-            Ok(file) => {
-                move_file(file);
-            },
-            Err(e) => {
-                eprintln!("Error reading file: {e}");
+        if let Ok(file) = file {
+            if let Err(e) = move_file(file) {
+                eprintln!("Error moving file: {e}");
             }
         }
     }
@@ -68,48 +91,23 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn move_file(file: DirEntry) {
+fn move_file(file: DirEntry) -> Result<(), Box<dyn Error>> {
     let original_path = file.path();
-    let root_directory = match get_root_directory(&original_path) {
-        Some(dir) => dir,
-        None => {
-            eprintln!("Error getting the root directory.");
-            return;
-        }
-    };
+    let root_directory = get_root_directory(&original_path)
+        .ok_or("Error getting the root directory")?;
 
-    let metadata = match file.metadata() {
-        Ok(metadata) => metadata,
-        Err(e) => {
-            eprintln!("Error reading file metadata: {e}");
-            return;
-        }
-    };
-
-    let creation_time = match get_creation_time(metadata) {
-        Ok(ct) => ct,
-        Err(_) => {
-            eprintln!("Error reading creation time from file. {original_path:?}");
-            return;
-        }
-    };
-
+    let metadata = file.metadata()?;
+    let creation_time = get_creation_time(metadata)?;
     let (year, month) = get_year_month(creation_time);
+
     let new_dir = root_directory.join(year.to_string()).join(month.to_string());
     let new_path = new_dir.join(file.file_name());
 
+    fs::create_dir_all(&new_dir)?;
+    fs::rename(&original_path, &new_path)?;
 
-    // Create the new directory if it doesn't exist
-    if let Err(e) = fs::create_dir_all(&new_dir) {
-        eprintln!("Error creating new directory: {e}");
-        return;
-    }
-
-    match fs::rename(&original_path, &new_path) {
-        Err(e) => eprintln!("Error while moving file: {e}"),
-        Ok(_) => println!("File moved to {:?}", new_path),
-    }
-
+    println!("File moved to {:?}", new_path);
+    Ok(())
 }
 
 fn get_creation_time(metadata: Metadata) -> Result<SystemTime, MetadataError> {
