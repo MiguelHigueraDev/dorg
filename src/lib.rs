@@ -139,13 +139,3 @@ fn get_root_directory(path: &Path) -> Option<&Path> {
     }
     None
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn no_extra_args() {
-        let directory_path = "screenshots";
-    }
-}
