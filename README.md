@@ -1,6 +1,6 @@
 # dorg (Directory Organizer)
 
-dorg is a small CLI tool that allows you to quickly organize files in a folder, creating folders and moving them so they are sorted by their creation date.
+dorg is a small CLI tool that allows you to quickly organize files in a folder, creating folders and moving files so they are sorted by their creation date.
 
 I created it because I wanted to easily sort my Windows screenshots folder by month.
 
