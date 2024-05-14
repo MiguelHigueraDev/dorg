@@ -102,16 +102,16 @@ fn process_directory(path: &Path, recursive: bool, sorting: &SortingType) -> Res
 
 fn move_file(file: DirEntry, sorting: &SortingType) -> Result<(), Box<dyn Error>> {
     let original_path = file.path();
-    let root_directory = get_root_directory(&original_path)
-        .ok_or("Error getting the root directory")?;
+    let parent_dir = get_parent_dir(&original_path)
+        .ok_or("Error getting the parent directory")?;
 
     let metadata = file.metadata()?;
     let creation_time = get_creation_time(metadata)?;
     let (year, month, day) = get_year_month_day(creation_time);
 
     let new_dir = match sorting {
-        SortingType::Month => root_directory.join(year.to_string()).join(month.to_string()),
-        SortingType::Day => root_directory.join(year.to_string()).join(month.to_string()).join(day.to_string()),
+        SortingType::Month => parent_dir.join(year.to_string()).join(month.to_string()),
+        SortingType::Day => parent_dir.join(year.to_string()).join(month.to_string()).join(day.to_string()),
     };
 
     let new_path = new_dir.join(file.file_name());
@@ -143,7 +143,7 @@ fn get_year_month_day(system_time: SystemTime) -> (i32, u32, u32) {
     (year, month, day)
 }
 
-fn get_root_directory(path: &Path) -> Option<PathBuf> {
+fn get_parent_dir(path: &Path) -> Option<PathBuf> {
     for component in path.components() {
         if let Component::Normal(root_dir) = component {
             return Some(PathBuf::from(root_dir));
