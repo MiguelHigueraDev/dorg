@@ -61,8 +61,8 @@ impl Config {
         while let Some(arg) = args.next() {
             match arg.as_str() {
                 "-r" => recursive = true,
-                arg if arg.starts_with("sorting=") => {
-                    let sorting_str = &arg["sorting=".len()..];
+                arg if arg.starts_with("-sorting=") => {
+                    let sorting_str = &arg["-sorting=".len()..];
                     sorting = match sorting_str {
                         "day" => SortingType::Day,
                         "month" => SortingType::Month,
@@ -78,21 +78,21 @@ impl Config {
 }
 
 pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
-    process_directory(&config.directory_path, config.recursive)?;
+    process_directory(&config.directory_path, config.recursive, &config.sorting)?;
     Ok(())
 }
 
-fn process_directory(path: &Path, recursive: bool) -> Result<(), Box<dyn Error>> {
+fn process_directory(path: &Path, recursive: bool, sorting: &SortingType) -> Result<(), Box<dyn Error>> {
     let entries = fs::read_dir(path)?;
 
     for entry in entries {
         let entry = entry?;
         if entry.file_type()?.is_dir() {
             if recursive {
-                process_directory(&entry.path(), recursive)?;
+                process_directory(&entry.path(), recursive, sorting)?;
             }
         } else {
-            move_file(entry)?;
+            move_file(entry, &sorting)?;
         }
     }
 
@@ -100,16 +100,20 @@ fn process_directory(path: &Path, recursive: bool) -> Result<(), Box<dyn Error>>
 }
 
 
-fn move_file(file: DirEntry) -> Result<(), Box<dyn Error>> {
+fn move_file(file: DirEntry, sorting: &SortingType) -> Result<(), Box<dyn Error>> {
     let original_path = file.path();
     let root_directory = get_root_directory(&original_path)
         .ok_or("Error getting the root directory")?;
 
     let metadata = file.metadata()?;
     let creation_time = get_creation_time(metadata)?;
-    let (year, month) = get_year_month(creation_time);
+    let (year, month, day) = get_year_month_day(creation_time);
 
-    let new_dir = root_directory.join(year.to_string()).join(month.to_string());
+    let new_dir = match sorting {
+        SortingType::Month => root_directory.join(year.to_string()).join(month.to_string()),
+        SortingType::Day => root_directory.join(year.to_string()).join(month.to_string()).join(day.to_string()),
+    };
+
     let new_path = new_dir.join(file.file_name());
 
     fs::create_dir_all(&new_dir)?;
@@ -129,13 +133,14 @@ fn get_creation_time(metadata: Metadata) -> Result<SystemTime, MetadataError> {
     })
 }
 
-fn get_year_month(system_time: SystemTime) -> (i32, u32) {
+fn get_year_month_day(system_time: SystemTime) -> (i32, u32, u32) {
     let datetime: DateTime<Utc> = system_time.into();
 
     let year = datetime.year();
     let month = datetime.month();
+    let day = datetime.day();
 
-    (year, month)
+    (year, month, day)
 }
 
 fn get_root_directory(path: &Path) -> Option<PathBuf> {
