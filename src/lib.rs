@@ -1,7 +1,15 @@
 use std::error::Error;
+use std::fs::{DirEntry, Metadata};
+use std::{fs, io};
+use std::time::SystemTime;
 
 pub enum SortingType {
     Month, Day
+}
+
+pub enum MetadataError {
+    CreationTimeUnavailable,
+    IoError(io::Error)
 }
 
 pub struct Config {
@@ -41,3 +49,51 @@ impl Config {
     }
 }
 
+pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
+    let files = fs::read_dir(config.directory_path)?;
+
+    for file in files {
+        match file {
+            Ok(file) => {
+                move_file(file);
+            },
+            Err(e) => {
+                eprintln!("Error reading file: {e}");
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn move_file(file: DirEntry) {
+    let path = file.path();
+
+    let metadata = match file.metadata() {
+        Ok(metadata) => metadata,
+        Err(e) => {
+            eprintln!("Error reading file metadata: {e}");
+            return;
+        }
+    };
+
+    let creation_time = match get_creation_time(metadata) {
+        Ok(ct) => ct,
+        Err(_) => {
+            eprintln!("Error reading creation time from file.");
+            return;
+        }
+    };
+
+
+}
+
+fn get_creation_time(metadata: Metadata) -> Result<SystemTime, MetadataError> {
+    metadata.created().map_err(|e| {
+        if e.kind() == io::ErrorKind::Other {
+            MetadataError::CreationTimeUnavailable
+        } else {
+            MetadataError::IoError(e)
+        }
+    })
+}

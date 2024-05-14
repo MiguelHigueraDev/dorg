@@ -9,4 +9,8 @@ fn main() {
         process::exit(1);
     });
     
+    if let Err(e) = dorg::run(config) {
+        eprintln!("Application error: {e}");
+        process::exit(1);
+    }
 }
