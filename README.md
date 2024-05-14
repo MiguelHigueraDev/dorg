@@ -6,5 +6,9 @@ I created it because I wanted to easily sort my Windows screenshots folder by mo
 
 ## Options
 
-- `-r` Recursive: Will also organize folders inside folders. If not, it will only move files
+- `-r` Recursive: Will also organize folders inside the specified folder recursively. If not, it will only move files in the current folder.
 - `-sorting=[day|month]` By default, the software will create a folder for each year, and a folder for each month of the year. If the `day` option is provided instead, it will also create a folder for each day as well.
+
+## Warning
+
+Even though the application works for my use case, it's still a WIP. Be careful when using this with sensitive files.
