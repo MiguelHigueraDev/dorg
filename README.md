@@ -10,6 +10,8 @@ I created it because I wanted to easily sort my Windows screenshots folder by mo
 
 `dorg [directory] [extra arguments]`
 
+Files will be moved and sorted from the specified directory to the current working directory.
+
 ## Arguments
 
 - `-r` Recursive: Will also organize folders inside the specified folder recursively. If not, it will only move files in the specified folder.

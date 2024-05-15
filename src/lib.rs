@@ -213,9 +213,6 @@ mod tests {
         let month_dir = year_dir.join(Utc::now().month().to_string());
         let moved_file_path = current_dir.join(&year_dir).join(month_dir).join("test_file.txt");
 
-        println!("{moved_file_path:?}");
-        println!("Current dir: {current_dir:?}");
-
         assert!(moved_file_path.exists());
 
         // Cleanup
