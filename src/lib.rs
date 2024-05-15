@@ -181,3 +181,37 @@ fn get_parent_dir(path: &Path) -> Option<PathBuf> {
     }
     Some(path.to_path_buf())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::{self, File};
+    use tempdir::TempDir;
+
+    #[test]
+    fn test_move_file_month_created() {
+        let temp_dir = TempDir::new("test_dir").expect("Failed to create temp dir");
+        let temp_dir_path = temp_dir.path();
+
+        // Create a dummy file
+        let file_path = temp_dir_path.join("test_file.txt");
+        File::create(&file_path).expect("Failed to create test file");
+
+        // Get the DirEntry for the dummy file
+        let dir_entry = fs::read_dir(&temp_dir_path)
+            .expect("Failed to read temp dir")
+            .next()
+            .expect("No file found in temp dir")
+            .expect("Failed to get DirEntry");
+
+        // Move the file using the Mode::Month and SortType::Created
+        move_file(dir_entry, &Mode::Month, &SortType::Created).expect("Failed to move file");
+
+        // Check if the file has been moved to the expected location
+        let year_dir = temp_dir_path.join(Utc::now().year().to_string());
+        let month_dir = year_dir.join(Utc::now().month().to_string());
+        let moved_file_path = month_dir.join("test_file.txt");
+
+        assert!(moved_file_path.exists());
+    }
+}
