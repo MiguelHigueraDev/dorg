@@ -5,7 +5,11 @@ use std::{fmt, fs, io};
 use std::time::SystemTime;
 use chrono::{DateTime, Datelike, Utc};
 
-pub enum SortingType {
+pub enum SortType {
+    Created, Modified
+}
+
+pub enum Mode {
     Month, Day
 }
 
@@ -43,7 +47,8 @@ impl From<io::Error> for MetadataError {
 pub struct Config {
     pub directory_path: PathBuf,
     pub recursive: bool,
-    pub sorting: SortingType
+    pub mode: Mode,
+    pub sort_type: SortType,
 }
 
 impl Config {
@@ -56,43 +61,52 @@ impl Config {
         };
 
         let mut recursive = false;
-        let mut sorting = SortingType::Month;
+        let mut mode = Mode::Month;
+        let mut sort_type = SortType::Created;
 
         while let Some(arg) = args.next() {
             match arg.as_str() {
                 "-r" => recursive = true,
-                arg if arg.starts_with("-sorting=") => {
-                    let sorting_str = &arg["-sorting=".len()..];
-                    sorting = match sorting_str {
-                        "day" => SortingType::Day,
-                        "month" => SortingType::Month,
-                        _ => return Err("Invalid sorting type"),
+                arg if arg.starts_with("-mode=") => {
+                    let mode_str = &arg["-mode=".len()..];
+                    mode = match mode_str {
+                        "day" => Mode::Day,
+                        "month" => Mode::Month,
+                        _ => return Err("Invalid mode"),
+                    }
+                },
+                arg if arg.starts_with("-sort") => {
+                    let sort_str = &arg["-sort=".len()..];
+                    sort_type = match sort_str {
+                        "created" => SortType::Created,
+                        "modified" => SortType::Modified,
+                        _ => return Err("Invalid sort type"),                  
                     }
                 }
                 _ => return Err("Unknown argument"),
             }
         }
 
-        Ok(Config { directory_path, recursive, sorting })
+        Ok(Config { directory_path, recursive, mode, sort_type })
     }
 }
 
 pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
-    process_directory(&config.directory_path, config.recursive, &config.sorting)?;
+    process_directory(&config)?;
     Ok(())
 }
 
-fn process_directory(path: &Path, recursive: bool, sorting: &SortingType) -> Result<(), Box<dyn Error>> {
-    let entries = fs::read_dir(path)?;
+fn process_directory(config: &Config) -> Result<(), Box<dyn Error>> {
+    let entries = fs::read_dir(&config.directory_path)?;
 
     for entry in entries {
         let entry = entry?;
         if entry.file_type()?.is_dir() {
-            if recursive {
-                process_directory(&entry.path(), recursive, sorting)?;
+            if config.recursive {
+                process_directory(config)?;
             }
         } else {
-            move_file(entry, &sorting)?;
+            move_file(entry, &config.mode, &config.sort_type)?;
         }
     }
 
@@ -100,18 +114,21 @@ fn process_directory(path: &Path, recursive: bool, sorting: &SortingType) -> Res
 }
 
 
-fn move_file(file: DirEntry, sorting: &SortingType) -> Result<(), Box<dyn Error>> {
+fn move_file(file: DirEntry, mode: &Mode, sort_type: &SortType) -> Result<(), Box<dyn Error>> {
     let original_path = file.path();
     let parent_dir = get_parent_dir(&original_path)
         .ok_or("Error getting the parent directory")?;
 
     let metadata = file.metadata()?;
-    let creation_time = get_creation_time(metadata)?;
+    let creation_time = match sort_type {
+        SortType::Created => get_creation_time(metadata)?,
+        SortType::Modified => get_modification_time(metadata)?,
+    };
     let (year, month, day) = get_year_month_day(creation_time);
 
-    let new_dir = match sorting {
-        SortingType::Month => parent_dir.join(year.to_string()).join(month.to_string()),
-        SortingType::Day => parent_dir.join(year.to_string()).join(month.to_string()).join(day.to_string()),
+    let new_dir = match mode {
+        Mode::Month => parent_dir.join(year.to_string()).join(month.to_string()),
+        Mode::Day => parent_dir.join(year.to_string()).join(month.to_string()).join(day.to_string()),
     };
 
     let new_path = new_dir.join(file.file_name());
@@ -125,6 +142,16 @@ fn move_file(file: DirEntry, sorting: &SortingType) -> Result<(), Box<dyn Error>
 
 fn get_creation_time(metadata: Metadata) -> Result<SystemTime, MetadataError> {
     metadata.created().map_err(|e| {
+        if e.kind() == io::ErrorKind::Other {
+            MetadataError::CreationTimeUnavailable
+        } else {
+            MetadataError::IoError(e)
+        }
+    })
+}
+
+fn get_modification_time(metadata: Metadata) -> Result<SystemTime, MetadataError> {
+    metadata.modified().map_err(|e| {
         if e.kind() == io::ErrorKind::Other {
             MetadataError::CreationTimeUnavailable
         } else {
