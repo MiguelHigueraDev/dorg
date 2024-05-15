@@ -185,7 +185,7 @@ fn get_parent_dir(path: &Path) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs::{self, File};
+    use std::{env, fs::{self, File}};
     use tempdir::TempDir;
 
     #[test]
@@ -208,10 +208,17 @@ mod tests {
         move_file(dir_entry, &Mode::Month, &SortType::Created).expect("Failed to move file");
 
         // Check if the file has been moved to the expected location
-        let year_dir = temp_dir_path.join(Utc::now().year().to_string());
+        let current_dir = env::current_dir().unwrap();
+        let year_dir: PathBuf = current_dir.join(Utc::now().year().to_string());
         let month_dir = year_dir.join(Utc::now().month().to_string());
-        let moved_file_path = month_dir.join("test_file.txt");
+        let moved_file_path = current_dir.join(&year_dir).join(month_dir).join("test_file.txt");
+
+        println!("{moved_file_path:?}");
+        println!("Current dir: {current_dir:?}");
 
         assert!(moved_file_path.exists());
+
+        // Cleanup
+        fs::remove_dir_all(current_dir.join(&year_dir)).expect("Failed to remove temp dir");
     }
 }
