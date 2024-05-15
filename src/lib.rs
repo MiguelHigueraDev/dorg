@@ -171,6 +171,9 @@ fn get_year_month_day(system_time: SystemTime) -> (i32, u32, u32) {
 }
 
 fn get_parent_dir(path: &Path) -> Option<PathBuf> {
+    if path.is_file() {
+        return Some(std::env::current_dir().ok()?);
+    }
     for component in path.components() {
         if let Component::Normal(root_dir) = component {
             return Some(PathBuf::from(root_dir));
