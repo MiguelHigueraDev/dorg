@@ -75,7 +75,7 @@ impl Config {
                         _ => return Err("Invalid mode"),
                     }
                 },
-                arg if arg.starts_with("-sort") => {
+                arg if arg.starts_with("-sort=") => {
                     let sort_str = &arg["-sort=".len()..];
                     sort_type = match sort_str {
                         "created" => SortType::Created,
